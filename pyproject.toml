@@ -1,43 +1,51 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "policybench"
-version = "0.3.0"
-description = "A mini-benchmark comparing LLM estimates to PolicyEngine US policy calculations."
+version = "2.0.0"
+description = "Benchmark: can AI models calculate tax/benefit outcomes without tools?"
 readme = "README.md"
 license = {text = "MIT"}
-authors = [
-  {name = "PolicyEngine", email = "hello@policyengine.org"},
-]
-keywords = ["PolicyEngine", "LLM", "tax", "benchmark"]
-classifiers = [
-  "Programming Language :: Python :: 3.9",
-  "License :: OSI Approved :: MIT License",
-  "Operating System :: OS Independent",
-]
-requires-python = ">=3.9"
-
+authors = [{name = "PolicyEngine", email = "hello@policyengine.org"}]
+requires-python = ">=3.10"
 dependencies = [
-  "numpy",
-  "pandas",
-  "edsl",
-  "policyengine-us>=0.7.0",
-  "pytest",
+    "edsl>=0.1.46",
+    "litellm>=1.30",
+    "policyengine-us>=1.0",
+    "pandas>=2.0",
+    "numpy>=1.24",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "black",
-  "flake8",
-  "pytest-cov",
-  # etc.
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+]
+docs = [
+    "jupyter-book>=2.0",
+    "myst-nb>=1.0",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
 ]
 
 [project.scripts]
-# This entry creates a CLI command `policybench` that calls the run_benchmark function.
-policybench = "policybench.main:run_benchmark"
+policybench = "policybench.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["policybench*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
