@@ -31,6 +31,12 @@ def main():
 
     args = parser.parse_args()
 
+    # Enable disk cache for all LLM calls
+    if args.command in ("eval-no-tools", "eval-with-tools"):
+        from policybench.cache import enable_cache
+
+        enable_cache()
+
     if args.command == "ground-truth":
         from policybench.ground_truth import calculate_ground_truth
         from policybench.scenarios import generate_scenarios

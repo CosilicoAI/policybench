@@ -11,14 +11,19 @@ from policybench.prompts import make_with_tools_prompt
 from policybench.scenarios import Scenario
 
 
-def handle_tool_call(tool_call, scenarios_by_id: dict[str, Scenario]) -> str:
-    """Execute a PolicyEngine tool call and return the result."""
+def handle_tool_call(tool_call, fallback_household: dict | None = None) -> str:
+    """Execute a PolicyEngine tool call and return the result.
+
+    If the model omits the household arg, uses fallback_household.
+    """
     args = json.loads(tool_call.function.arguments)
-    household_json = args["household"]
+    household_json = args.get("household", fallback_household)
     variable = args["variable"]
     year = args.get("year", TAX_YEAR)
 
-    # Create a temporary scenario from the tool call's household
+    if household_json is None:
+        return json.dumps({"error": "No household provided"})
+
     sim = Simulation(situation=household_json)
     result = float(sim.calculate(variable, year).sum())
     return json.dumps({"result": result})
@@ -41,6 +46,7 @@ def run_single_with_tools(
         messages=messages,
         tools=[PE_TOOL_DEFINITION],
         tool_choice="auto",
+        caching=True,
     )
 
     message = response.choices[0].message
@@ -61,8 +67,9 @@ def run_single_with_tools(
         messages.append(message.model_dump())
 
         # Process each tool call
+        fallback_hh = scenario.to_pe_household()
         for tc in message.tool_calls:
-            result = handle_tool_call(tc, {})
+            result = handle_tool_call(tc, fallback_household=fallback_hh)
             messages.append(
                 {
                     "role": "tool",
@@ -77,6 +84,7 @@ def run_single_with_tools(
             messages=messages,
             tools=[PE_TOOL_DEFINITION],
             tool_choice="auto",
+            caching=True,
         )
         message = response.choices[0].message
 

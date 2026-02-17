@@ -1,33 +1,49 @@
-"""AI-alone evaluation using EDSL."""
+"""AI-alone evaluation using LiteLLM (no tools provided)."""
+
+import re
 
 import pandas as pd
-from edsl import QuestionNumerical, Survey
-from edsl.agents import Agent
+from litellm import completion
 
 from policybench.config import MODELS, PROGRAMS
 from policybench.prompts import make_no_tools_prompt
 from policybench.scenarios import Scenario
 
 
-def build_survey(
-    scenarios: list[Scenario],
-    programs: list[str] | None = None,
-) -> Survey:
-    """Build an EDSL Survey for all scenario × program combinations."""
-    if programs is None:
-        programs = PROGRAMS
+def extract_number(text: str) -> float | None:
+    """Extract a numeric value from model response text."""
+    if not text:
+        return None
+    cleaned = text.strip().replace(",", "").replace("$", "")
+    try:
+        return float(cleaned)
+    except ValueError:
+        pass
+    matches = re.findall(r"-?\d+\.?\d*", cleaned)
+    if matches:
+        return float(matches[-1])
+    return None
 
-    questions = []
-    for scenario in scenarios:
-        for variable in programs:
-            prompt = make_no_tools_prompt(scenario, variable)
-            q = QuestionNumerical(
-                question_name=f"{scenario.id}__{variable}",
-                question_text=prompt,
-            )
-            questions.append(q)
 
-    return Survey(questions=questions)
+def run_single_no_tools(
+    scenario: Scenario,
+    variable: str,
+    model_id: str,
+) -> dict:
+    """Run a single scenario/variable without tools.
+
+    Returns dict with: prediction, raw_response
+    """
+    prompt = make_no_tools_prompt(scenario, variable)
+    messages = [{"role": "user", "content": prompt}]
+
+    response = completion(model=model_id, messages=messages, caching=True)
+    content = response.choices[0].message.content
+
+    return {
+        "prediction": extract_number(content),
+        "raw_response": content,
+    }
 
 
 def run_no_tools_eval(
@@ -38,30 +54,25 @@ def run_no_tools_eval(
     """Run the AI-alone evaluation across all models.
 
     Returns DataFrame with columns:
-        model, scenario_id, variable, prediction
+        model, scenario_id, variable, prediction, raw_response
     """
     if models is None:
         models = MODELS
     if programs is None:
         programs = PROGRAMS
 
-    survey = build_survey(scenarios, programs)
     all_rows = []
 
     for model_name, model_id in models.items():
-        agent = Agent(name=f"policybench_{model_name}")
-        results = survey.by(agent).run(model=model_id)
-
         for scenario in scenarios:
             for variable in programs:
-                q_name = f"{scenario.id}__{variable}"
-                answer = results.select(q_name).first()
+                result = run_single_no_tools(scenario, variable, model_id)
                 all_rows.append(
                     {
                         "model": model_name,
                         "scenario_id": scenario.id,
                         "variable": variable,
-                        "prediction": float(answer) if answer is not None else None,
+                        **result,
                     }
                 )
 
