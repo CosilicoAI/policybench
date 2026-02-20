@@ -1,6 +1,7 @@
 """AI-alone evaluation using LiteLLM (no tools provided)."""
 
 import re
+import time
 
 import pandas as pd
 from litellm import completion
@@ -8,6 +9,9 @@ from litellm import completion
 from policybench.config import MODELS, PROGRAMS
 from policybench.prompts import make_no_tools_prompt
 from policybench.scenarios import Scenario
+
+MAX_RETRIES = 5
+RETRY_BASE_DELAY = 2
 
 
 def extract_number(text: str) -> float | None:
@@ -37,21 +41,32 @@ def run_single_no_tools(
     prompt = make_no_tools_prompt(scenario, variable)
     messages = [{"role": "user", "content": prompt}]
 
-    response = completion(model=model_id, messages=messages, caching=True)
-    content = response.choices[0].message.content
-
-    return {
-        "prediction": extract_number(content),
-        "raw_response": content,
-    }
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = completion(model=model_id, messages=messages, caching=True)
+            content = response.choices[0].message.content
+            return {
+                "prediction": extract_number(content),
+                "raw_response": content,
+            }
+        except Exception as e:
+            if attempt == MAX_RETRIES - 1:
+                raise
+            delay = RETRY_BASE_DELAY * (2**attempt)
+            print(f"  Retry {attempt + 1}/{MAX_RETRIES} after error: {e!r:.80s}... waiting {delay}s")
+            time.sleep(delay)
+    return {"prediction": None, "raw_response": None}  # unreachable
 
 
 def run_no_tools_eval(
     scenarios: list[Scenario],
     models: dict[str, str] | None = None,
     programs: list[str] | None = None,
+    output_path: str | None = None,
 ) -> pd.DataFrame:
     """Run the AI-alone evaluation across all models.
+
+    If output_path is provided, saves incrementally every 100 rows.
 
     Returns DataFrame with columns:
         model, scenario_id, variable, prediction, raw_response
@@ -62,6 +77,8 @@ def run_no_tools_eval(
         programs = PROGRAMS
 
     all_rows = []
+    total = len(models) * len(scenarios) * len(programs)
+    done = 0
 
     for model_name, model_id in models.items():
         for scenario in scenarios:
@@ -75,5 +92,13 @@ def run_no_tools_eval(
                         **result,
                     }
                 )
+                done += 1
+                if done % 100 == 0:
+                    print(f"  Progress: {done}/{total} ({done*100//total}%)")
+                    if output_path:
+                        pd.DataFrame(all_rows).to_csv(output_path, index=False)
 
-    return pd.DataFrame(all_rows)
+    df = pd.DataFrame(all_rows)
+    if output_path:
+        df.to_csv(output_path, index=False)
+    return df

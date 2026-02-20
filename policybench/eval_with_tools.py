@@ -1,6 +1,7 @@
 """AI-with-tools evaluation using LiteLLM."""
 
 import json
+import time
 
 import pandas as pd
 from litellm import completion
@@ -9,6 +10,9 @@ from policyengine_us import Simulation
 from policybench.config import MODELS, PE_TOOL_DEFINITION, PROGRAMS, TAX_YEAR
 from policybench.prompts import make_with_tools_prompt
 from policybench.scenarios import Scenario
+
+MAX_RETRIES = 5
+RETRY_BASE_DELAY = 2
 
 
 def handle_tool_call(tool_call, fallback_household: dict | None = None) -> str:
@@ -29,6 +33,19 @@ def handle_tool_call(tool_call, fallback_household: dict | None = None) -> str:
     return json.dumps({"result": result})
 
 
+def _completion_with_retry(**kwargs):
+    """Call litellm.completion with exponential backoff retry."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            return completion(**kwargs)
+        except Exception as e:
+            if attempt == MAX_RETRIES - 1:
+                raise
+            delay = RETRY_BASE_DELAY * (2**attempt)
+            print(f"  Retry {attempt + 1}/{MAX_RETRIES} after error: {e!r:.80s}... waiting {delay}s")
+            time.sleep(delay)
+
+
 def run_single_with_tools(
     scenario: Scenario,
     variable: str,
@@ -41,7 +58,7 @@ def run_single_with_tools(
     prompt = make_with_tools_prompt(scenario, variable)
 
     messages = [{"role": "user", "content": prompt}]
-    response = completion(
+    response = _completion_with_retry(
         model=model_id,
         messages=messages,
         tools=[PE_TOOL_DEFINITION],
@@ -79,7 +96,7 @@ def run_single_with_tools(
             )
 
         # Get next response
-        response = completion(
+        response = _completion_with_retry(
             model=model_id,
             messages=messages,
             tools=[PE_TOOL_DEFINITION],
@@ -108,8 +125,11 @@ def run_with_tools_eval(
     scenarios: list[Scenario],
     models: dict[str, str] | None = None,
     programs: list[str] | None = None,
+    output_path: str | None = None,
 ) -> pd.DataFrame:
     """Run the AI-with-tools evaluation across all models.
+
+    If output_path is provided, saves incrementally every 100 rows.
 
     Returns DataFrame with columns:
         model, scenario_id, variable, prediction, used_tool, tool_calls
@@ -120,6 +140,8 @@ def run_with_tools_eval(
         programs = PROGRAMS
 
     all_rows = []
+    total = len(models) * len(scenarios) * len(programs)
+    done = 0
 
     for model_name, model_id in models.items():
         for scenario in scenarios:
@@ -133,5 +155,13 @@ def run_with_tools_eval(
                         **result,
                     }
                 )
+                done += 1
+                if done % 100 == 0:
+                    print(f"  Progress: {done}/{total} ({done*100//total}%)")
+                    if output_path:
+                        pd.DataFrame(all_rows).to_csv(output_path, index=False)
 
-    return pd.DataFrame(all_rows)
+    df = pd.DataFrame(all_rows)
+    if output_path:
+        df.to_csv(output_path, index=False)
+    return df
