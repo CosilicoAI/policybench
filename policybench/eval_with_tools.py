@@ -8,6 +8,7 @@ from litellm import completion
 from policyengine_us import Simulation
 
 from policybench.config import MODELS, PE_TOOL_DEFINITION, PROGRAMS, TAX_YEAR
+from policybench.eval_no_tools import extract_number
 from policybench.prompts import make_with_tools_prompt
 from policybench.scenarios import Scenario
 
@@ -19,18 +20,28 @@ def handle_tool_call(tool_call, fallback_household: dict | None = None) -> str:
     """Execute a PolicyEngine tool call and return the result.
 
     If the model omits the household arg, uses fallback_household.
+    Catches PE simulation errors and returns them so the model can retry.
     """
-    args = json.loads(tool_call.function.arguments)
+    try:
+        args = json.loads(tool_call.function.arguments)
+    except json.JSONDecodeError as e:
+        return json.dumps({"error": f"Invalid JSON: {e}"})
+
     household_json = args.get("household", fallback_household)
-    variable = args["variable"]
+    variable = args.get("variable")
     year = args.get("year", TAX_YEAR)
 
     if household_json is None:
         return json.dumps({"error": "No household provided"})
+    if variable is None:
+        return json.dumps({"error": "No variable provided"})
 
-    sim = Simulation(situation=household_json)
-    result = float(sim.calculate(variable, year).sum())
-    return json.dumps({"result": result})
+    try:
+        sim = Simulation(situation=household_json)
+        result = float(sim.calculate(variable, year).sum())
+        return json.dumps({"result": result})
+    except Exception as e:
+        return json.dumps({"error": str(e)[:500]})
 
 
 def _completion_with_retry(**kwargs):
@@ -107,12 +118,7 @@ def run_single_with_tools(
 
     # Extract numeric prediction from final response
     if message.content:
-        try:
-            prediction = float(
-                message.content.strip().replace(",", "").replace("$", "")
-            )
-        except (ValueError, AttributeError):
-            prediction = None
+        prediction = extract_number(message.content)
 
     return {
         "prediction": prediction,
@@ -146,7 +152,11 @@ def run_with_tools_eval(
     for model_name, model_id in models.items():
         for scenario in scenarios:
             for variable in programs:
-                result = run_single_with_tools(scenario, variable, model_id)
+                try:
+                    result = run_single_with_tools(scenario, variable, model_id)
+                except Exception as e:
+                    print(f"  ERROR on {model_name}/{scenario.id}/{variable}: {e!r:.120s}")
+                    result = {"prediction": None, "used_tool": False, "tool_calls": 0}
                 all_rows.append(
                     {
                         "model": model_name,
@@ -156,7 +166,7 @@ def run_with_tools_eval(
                     }
                 )
                 done += 1
-                if done % 100 == 0:
+                if done % 10 == 0:
                     print(f"  Progress: {done}/{total} ({done*100//total}%)")
                     if output_path:
                         pd.DataFrame(all_rows).to_csv(output_path, index=False)
