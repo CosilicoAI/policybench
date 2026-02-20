@@ -70,15 +70,10 @@ def load_ground_truth():
 
 
 def load_predictions(results_dir):
-    """Load all prediction CSVs from a results directory."""
-    dfs = []
-    for csv_path in sorted(results_dir.glob("*.csv")):
-        if csv_path.name == ".gitkeep":
-            continue
-        df = pd.read_csv(csv_path)
-        dfs.append(df)
-    if dfs:
-        return pd.concat(dfs, ignore_index=True)
+    """Load the main predictions.csv from a results directory."""
+    csv_path = results_dir / "predictions.csv"
+    if csv_path.exists():
+        return pd.read_csv(csv_path)
     return pd.DataFrame(columns=["model", "scenario_id", "variable", "prediction"])
 
 

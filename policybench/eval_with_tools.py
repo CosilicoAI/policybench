@@ -53,7 +53,7 @@ def _completion_with_retry(**kwargs):
             if attempt == MAX_RETRIES - 1:
                 raise
             delay = RETRY_BASE_DELAY * (2**attempt)
-            print(f"  Retry {attempt + 1}/{MAX_RETRIES} after error: {e!r:.80s}... waiting {delay}s")
+            print(f"  Retry {attempt + 1}: {e!r:.60s}... {delay}s")
             time.sleep(delay)
 
 
@@ -83,6 +83,7 @@ def run_single_with_tools(
     tool_call_count = 0
 
     # Handle tool calls (may need multiple rounds)
+    last_tool_result = None
     max_rounds = 3
     for _ in range(max_rounds):
         if not message.tool_calls:
@@ -98,6 +99,13 @@ def run_single_with_tools(
         fallback_hh = scenario.to_pe_household()
         for tc in message.tool_calls:
             result = handle_tool_call(tc, fallback_household=fallback_hh)
+            # Track last successful tool result
+            try:
+                result_data = json.loads(result)
+                if "result" in result_data:
+                    last_tool_result = result_data["result"]
+            except (json.JSONDecodeError, KeyError):
+                pass
             messages.append(
                 {
                     "role": "tool",
@@ -116,8 +124,11 @@ def run_single_with_tools(
         )
         message = response.choices[0].message
 
-    # Extract numeric prediction from final response
-    if message.content:
+    # Prefer the tool result directly when available (avoids extraction
+    # errors from verbose model responses that mention other numbers)
+    if last_tool_result is not None:
+        prediction = last_tool_result
+    elif message.content:
         prediction = extract_number(message.content)
 
     return {
@@ -155,7 +166,7 @@ def run_with_tools_eval(
                 try:
                     result = run_single_with_tools(scenario, variable, model_id)
                 except Exception as e:
-                    print(f"  ERROR on {model_name}/{scenario.id}/{variable}: {e!r:.120s}")
+                    print(f"  ERROR: {scenario.id}/{variable}: {e!r:.60s}")
                     result = {"prediction": None, "used_tool": False, "tool_calls": 0}
                 all_rows.append(
                     {
@@ -167,7 +178,7 @@ def run_with_tools_eval(
                 )
                 done += 1
                 if done % 10 == 0:
-                    print(f"  Progress: {done}/{total} ({done*100//total}%)")
+                    print(f"  Progress: {done}/{total} ({done * 100 // total}%)")
                     if output_path:
                         pd.DataFrame(all_rows).to_csv(output_path, index=False)
 

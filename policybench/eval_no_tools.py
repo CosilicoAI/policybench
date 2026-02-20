@@ -53,7 +53,7 @@ def run_single_no_tools(
             if attempt == MAX_RETRIES - 1:
                 raise
             delay = RETRY_BASE_DELAY * (2**attempt)
-            print(f"  Retry {attempt + 1}/{MAX_RETRIES} after error: {e!r:.80s}... waiting {delay}s")
+            print(f"  Retry {attempt + 1}: {e!r:.60s}... {delay}s")
             time.sleep(delay)
     return {"prediction": None, "raw_response": None}  # unreachable
 
@@ -94,7 +94,7 @@ def run_no_tools_eval(
                 )
                 done += 1
                 if done % 100 == 0:
-                    print(f"  Progress: {done}/{total} ({done*100//total}%)")
+                    print(f"  Progress: {done}/{total} ({done * 100 // total}%)")
                     if output_path:
                         pd.DataFrame(all_rows).to_csv(output_path, index=False)
 
