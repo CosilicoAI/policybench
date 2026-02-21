@@ -9,7 +9,8 @@ SEED = 42
 # Models to benchmark (latest from each provider as of Feb 2026)
 MODELS = {
     "claude-opus": "claude-opus-4-6",
-    "claude-sonnet": "claude-sonnet-4-5-20250929",
+    "claude-sonnet-4.5": "claude-sonnet-4-5-20250929",
+    "claude-sonnet-4.6": "claude-sonnet-4-6",
     "gpt-5.2": "gpt-5.2",
     "gemini-3-pro": "gemini/gemini-3-pro-preview",
 }
