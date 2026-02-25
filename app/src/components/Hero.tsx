@@ -1,87 +1,102 @@
-import {
-  getOverallNoToolsAccuracy,
-  getOverallWithToolsAccuracy,
-  getOverallNoToolsMAE,
-} from "../data";
+import type { BenchData } from "../App";
 
-function StatCard({
-  label,
+function Stat({
   value,
-  sublabel,
+  label,
   accent,
+  delay,
 }: {
-  label: string;
   value: string;
-  sublabel?: string;
-  accent: "red" | "green" | "blue";
+  label: string;
+  accent: "cyan" | "coral" | "amber";
+  delay: number;
 }) {
-  const borderColor = {
-    red: "border-accuracy-bad",
-    green: "border-accuracy-good",
-    blue: "border-pe-blue",
-  }[accent];
-
-  const textColor = {
-    red: "text-accuracy-bad",
-    green: "text-accuracy-good",
-    blue: "text-pe-blue",
-  }[accent];
-
+  const styles = {
+    cyan: "text-cyan border-cyan/20 bg-cyan-soft",
+    coral: "text-coral border-coral/20 bg-coral-soft",
+    amber: "text-amber border-amber/20 bg-amber-soft",
+  };
   return (
     <div
-      className={`bg-white rounded-xl p-6 shadow-sm border-l-4 ${borderColor}`}
+      className={`border rounded-xl px-5 py-4 ${styles[accent]} animate-fade-up`}
+      style={{ animationDelay: `${delay}ms` }}
     >
-      <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+      <div className="text-2xl font-semibold tracking-tight font-[family-name:var(--font-mono)]">
+        {value}
+      </div>
+      <div className="text-[10px] uppercase tracking-[0.14em] mt-1.5 opacity-60 font-medium">
         {label}
-      </p>
-      <p className={`text-3xl font-bold mt-1 ${textColor}`}>{value}</p>
-      {sublabel && <p className="text-sm text-gray-400 mt-1">{sublabel}</p>}
+      </div>
     </div>
   );
 }
 
-export default function Hero() {
-  const noToolsAcc = getOverallNoToolsAccuracy();
-  const withToolsAcc = getOverallWithToolsAccuracy();
-  const noToolsMAE = getOverallNoToolsMAE();
+export default function Hero({ data }: { data: BenchData }) {
+  const noTools = data.modelStats.filter((m) => m.condition === "no_tools");
+  const withTools = data.modelStats.filter((m) => m.condition === "with_tools");
+
+  const avgNoToolsAcc =
+    noTools.reduce((s, m) => s + m.within10pct, 0) / noTools.length;
+  const avgWithToolsAcc =
+    withTools.reduce((s, m) => s + m.within10pct, 0) / withTools.length;
+  const avgNoToolsMAE =
+    noTools.reduce((s, m) => s + m.mae, 0) / noTools.length;
 
   return (
-    <section className="bg-pe-dark text-white py-16 px-6">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-5xl font-bold tracking-tight">PolicyBench</h1>
-        <p className="text-xl text-blue-200 mt-4 max-w-3xl">
-          AI models cannot accurately calculate US tax and benefit outcomes on
-          their own, but with PolicyEngine tools they achieve near-perfect
-          accuracy.
+    <header className="relative overflow-hidden">
+      {/* Ambient glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[450px] bg-cyan/[0.03] rounded-full blur-[150px]" />
+
+      <div className="relative max-w-7xl mx-auto px-6 pt-24 pb-16">
+        <div className="eyebrow mb-5 animate-fade-up">Benchmark</div>
+
+        <h1
+          className="font-[family-name:var(--font-display)] text-6xl md:text-7xl lg:text-8xl text-text leading-[0.92] tracking-tight animate-fade-up"
+          style={{ animationDelay: "80ms" }}
+        >
+          Policy<span className="text-cyan">Bench</span>
+        </h1>
+
+        <p
+          className="text-text-secondary text-lg max-w-2xl mt-7 leading-relaxed animate-fade-up"
+          style={{ animationDelay: "160ms" }}
+        >
+          Can frontier AI models accurately calculate US taxes and benefits? We
+          benchmarked {noTools.length} models on{" "}
+          {data.scatter.length.toLocaleString()} predictions across 14 programs
+          and 100 household scenarios.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-10">
-          <StatCard
-            label="Accuracy without tools"
-            value={`${noToolsAcc}%`}
-            sublabel="within 10% of correct answer"
-            accent="red"
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-12">
+          <Stat
+            value={`${avgNoToolsAcc.toFixed(1)}%`}
+            label="Accuracy / AI alone"
+            accent="coral"
+            delay={250}
           />
-          <StatCard
-            label="Accuracy with tools"
-            value={`${withToolsAcc}%`}
-            sublabel="within 10% of correct answer"
-            accent="green"
+          <Stat
+            value={`${avgWithToolsAcc.toFixed(1)}%`}
+            label="Accuracy / with tools"
+            accent="cyan"
+            delay={350}
           />
-          <StatCard
-            label="Avg. MAE without tools"
-            value={`$${noToolsMAE.toLocaleString()}`}
-            sublabel="mean absolute error"
-            accent="red"
+          <Stat
+            value={`$${Math.round(avgNoToolsMAE).toLocaleString()}`}
+            label="Avg error / AI alone"
+            accent="coral"
+            delay={450}
           />
-          <StatCard
-            label="MAE with tools"
+          <Stat
             value="$0"
-            sublabel="exact match every time"
-            accent="green"
+            label="Avg error / with tools"
+            accent="cyan"
+            delay={550}
           />
         </div>
       </div>
-    </section>
+
+      {/* Divider line with glow */}
+      <div className="h-px bg-gradient-to-r from-transparent via-cyan/30 to-transparent" />
+    </header>
   );
 }

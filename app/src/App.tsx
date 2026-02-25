@@ -1,26 +1,90 @@
+import { useState } from "react";
+import data from "./data.json";
 import Hero from "./components/Hero";
-import ModelComparison from "./components/ModelComparison";
-import ProgramBreakdown from "./components/ProgramBreakdown";
-import ExampleScenarios from "./components/ExampleScenarios";
+import ScatterPlot from "./components/ScatterPlot";
+import ModelLeaderboard from "./components/ModelLeaderboard";
+import ProgramHeatmap from "./components/ProgramHeatmap";
+import ScenarioExplorer from "./components/ScenarioExplorer";
+
+export type BenchData = typeof data;
+
+const NAV_ITEMS = [
+  { id: "scatter", label: "Scatter" },
+  { id: "models", label: "Models" },
+  { id: "programs", label: "Programs" },
+  { id: "scenarios", label: "Scenarios" },
+] as const;
 
 export default function App() {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Hero />
-      <ModelComparison />
-      <ProgramBreakdown />
-      <ExampleScenarios />
+  const [activeNav, setActiveNav] = useState<string>("scatter");
 
-      <footer className="py-8 px-6 text-center text-sm text-gray-400 border-t border-gray-200">
-        <p>
-          PolicyBench is a benchmark by{" "}
-          <a
-            href="https://policyengine.org"
-            className="text-pe-blue hover:underline"
-          >
+  return (
+    <div className="min-h-screen bg-void">
+      {/* Grain overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-50 opacity-[0.02]"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      <Hero data={data} />
+
+      {/* Sticky nav */}
+      <nav className="sticky top-0 z-40 bg-void/80 backdrop-blur-md border-b border-border">
+        <div className="max-w-7xl mx-auto px-6 flex gap-1">
+          {NAV_ITEMS.map((item) => (
+            <a
+              key={item.id}
+              href={`#${item.id}`}
+              onClick={() => setActiveNav(item.id)}
+              className={`px-4 py-3 text-xs font-medium tracking-wider uppercase transition-colors border-b-2 ${
+                activeNav === item.id
+                  ? "border-amber text-amber"
+                  : "border-transparent text-text-2 hover:text-text-1"
+              }`}
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-6">
+        <section id="scatter" className="pt-16 pb-20">
+          <ScatterPlot data={data} />
+        </section>
+
+        <section id="models" className="pb-20">
+          <ModelLeaderboard data={data} />
+        </section>
+
+        <section id="programs" className="pb-20">
+          <ProgramHeatmap data={data} />
+        </section>
+
+        <section id="scenarios" className="pb-20">
+          <ScenarioExplorer data={data} />
+        </section>
+      </main>
+
+      <footer className="border-t border-border py-10 px-6 text-center">
+        <p className="text-text-3 text-xs tracking-wide">
+          PolicyBench v2 &mdash; 9,800 predictions across 4 frontier models, 14
+          programs, and 100 household scenarios.
+        </p>
+        <p className="text-text-3 text-xs mt-2">
+          <a href="https://cosilico.ai" className="text-text-2 hover:text-amber transition-colors">
+            Cosilico
+          </a>
+          {" "}&middot;{" "}
+          <a href="https://policyengine.org" className="text-text-2 hover:text-amber transition-colors">
             PolicyEngine
           </a>
-          . Results use mock data and will be updated with real benchmark runs.
+          {" "}&middot;{" "}
+          <a href="https://github.com/CosilicoAI/policybench" className="text-text-2 hover:text-amber transition-colors">
+            GitHub
+          </a>
         </p>
       </footer>
     </div>
