@@ -1,0 +1,28 @@
+version: 1
+project:
+  title: "PolicyBench: Can AI models calculate tax and benefit outcomes?"
+  authors:
+    - name: Max Ghenis
+      affiliations:
+        - Cosilico
+  keywords:
+    - artificial intelligence
+    - tax policy
+    - microsimulation
+    - benchmarking
+    - large language models
+  license: MIT
+  toc:
+    - file: index
+    - file: introduction
+    - file: methodology
+    - file: results
+    - file: discussion
+    - file: references
+  exports:
+    - format: pdf
+      template: plain_latex_book
+      output: exports/policybench.pdf
+
+site:
+  title: "PolicyBench: Can AI models calculate tax and benefit outcomes?"
